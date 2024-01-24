@@ -123,10 +123,14 @@ resource "google_container_node_pool" "dedicated" {
 
     # By leveraging Kubernetes taints, we ensure that only services that
     # are specifically configured can be scheduled on this node pool
+    # The components.gke.io/gke-managed-components taint is already tolerated
+    # by the system components that GKE deploys, which means
+    # the autoscaler will be able to evict system pods from the spot pool into this pool
+    # Resulting in allowing the spot pool to scale down to zero
     # https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
     taint {
-      key    = "type"
-      value  = "dedicated"
+      key    = "components.gke.io/gke-managed-components"
+      value  = "true"
       effect = "NO_SCHEDULE"
     }
   }
