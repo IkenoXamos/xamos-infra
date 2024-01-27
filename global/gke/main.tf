@@ -137,6 +137,10 @@ resource "google_container_node_pool" "dedicated" {
       value  = "true"
       effect = "NO_SCHEDULE"
     }
+
+    # https://github.com/xamos-portfolio/infra/issues/5
+    disk_size_gb = 30
+    disk_type    = "pd-standard"
   }
 }
 
@@ -166,6 +170,10 @@ resource "google_container_node_pool" "spot" {
     }
 
     service_account = google_service_account.kubernetes.email
+
+    # https://github.com/xamos-portfolio/infra/issues/5
+    disk_size_gb = 30
+    disk_type    = "pd-standard"
   }
 }
 
