@@ -14,6 +14,10 @@ resource "google_container_cluster" "main" {
   location = "us-east1-b" # By specifying a zone rather than a region, we create a zonal cluster
   # This has less availability by not replicating across all zones in a region, but also will be cheaper
   # as it needs less resources
+  # Additionally, GKE's free tier offering applies only if you have a single zonal cluster
+  # So not only does it need less resources for replication, but also saves
+  # the 10 cents per hour management fee
+  # https://cloud.google.com/kubernetes-engine/pricing#cluster_management_fee_and_free_tier
 
   # If we want to specify multiple zones without making the cluster into a regional cluster
   # we can optionally specify the extra zones with
