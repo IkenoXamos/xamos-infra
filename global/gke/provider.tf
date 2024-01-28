@@ -18,3 +18,8 @@ provider "helm" {
     token                  = data.google_client_config.current.access_token
   }
 }
+
+provider "aws" {
+  region  = "us-east-1"
+  profile = "personal"
+}

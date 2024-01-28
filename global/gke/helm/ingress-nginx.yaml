@@ -1,7 +1,7 @@
 controller:
-  service:
-    targetPorts:
-      https: http # We will eventually support TLS Termination
+  # service:
+    # targetPorts:
+      # https: http # We will eventually support TLS Termination
   ingressClassResource:
     default: true # Set the nginx-controller as the default ingress controller
   tolerations:
