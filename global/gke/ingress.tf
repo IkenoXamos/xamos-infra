@@ -12,6 +12,7 @@ resource "helm_release" "ingress" {
   cleanup_on_fail = true
   lint            = true
 
+  # https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx#values
   values = [
     file("${path.module}/helm/ingress-nginx.yaml")
   ]

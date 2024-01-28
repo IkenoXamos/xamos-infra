@@ -147,7 +147,7 @@ resource "kubernetes_ingress_v1" "kuard" {
   metadata {
     name = "kuard"
     annotations = {
-      # "cert-manager.io/cluster-issuer" = "letsencrypt-staging"
+      "cert-manager.io/cluster-issuer" = "letsencrypt-staging"
     }
   }
 
