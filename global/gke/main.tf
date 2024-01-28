@@ -54,6 +54,18 @@ resource "google_container_cluster" "main" {
     }
   }
 
+  # Default monitoring config is fine for now
+  # We will revisit this later when we're ready to setup proper monitoring
+  monitoring_config {
+    enable_components = [
+      "SYSTEM_COMPONENTS",
+    ]
+
+    managed_prometheus {
+      enabled = true
+    }
+  }
+
   # We want to support autoscaling down to zero when possible
   # So we change the autoscaling profile from BALANCED to OPTIMIZE_UTILIZATION
   # This may evict pods at inopportune times so likely isn't suitable for production clusters
