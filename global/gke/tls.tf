@@ -42,13 +42,13 @@ resource "google_compute_firewall" "cert_manager_webhook" {
   # Port 443 is the default
   allow {
     protocol = "tcp"
-    ports    = [data.kubernetes_service.cert_manager_webhook.spec[0].port[0].port]
+    ports    = [data.kubernetes_service.cert_manager_webhook.spec.0.port.0.port]
   }
 
   # Requests from the cluster api server
   # https://cloud.google.com/kubernetes-engine/docs/how-to/private-clusters#add_firewall_rules
   # This can also be found manually with `gcloud container clusters describe <cluster-name> --location=<location> --format="yaml(network, privateClusterConfig)"`
-  source_ranges = [google_container_cluster.main.private_cluster_config[0].private_endpoint]
+  source_ranges = [google_container_cluster.main.private_cluster_config.0.private_endpoint]
 
   target_tags = ["gke-${google_container_cluster.main.name}-node"]
 }
@@ -69,12 +69,9 @@ resource "kubernetes_manifest" "cluster_issuer" {
   manifest = yamldecode(templatefile("${path.module}/manifests/cluster-issuer.yaml", {
     email = data.google_client_openid_userinfo.me.email
 
-    # This is the staging server url for now, as the prod server has strict rate limits
-    # The certs issued by the staging environment are not valid, but are useful to verify
-    # that the certs are correctly issued by Let's Encrypt
-    # https://letsencrypt.org/docs/staging-environment/
-    acme_server = "https://acme-staging-v02.api.letsencrypt.org/directory"
-    name        = "letsencrypt-staging"
+    # https://letsencrypt.org/docs/staging-environment/ vs 
+    acme_server = "https://acme-v02.api.letsencrypt.org/directory"
+    name        = "letsencrypt"
   }))
 
   depends_on = [helm_release.cert_manager]

@@ -1,5 +1,4 @@
 # Create a DNS entry for the Load Balancer
-# Following https://cert-manager.io/docs/tutorials/acme/nginx-ingress/#step-3---assign-a-dns-name
 
 # Fetch the source zone
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone
@@ -12,21 +11,17 @@ data "aws_route53_zone" "source" {
 # https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/service
 data "kubernetes_service" "ingress_controller" {
   metadata {
-    name      = "ingress-ingress-nginx-controller"
-    namespace = "ingress"
+    name      = "${helm_release.ingress.name}-${helm_release.ingress.chart}-controller"
+    namespace = helm_release.ingress.namespace
   }
-
-  depends_on = [
-    helm_release.ingress,
-  ]
 }
 
-# Create a managed zone in GCP for the kuard subdomain
+# Create a managed zone in GCP for the 2048 game subdomain
 # https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/dns_managed_zone
-resource "google_dns_managed_zone" "kuard" {
-  name        = "kuard"
-  dns_name    = "kuard.${data.aws_route53_zone.source.name}."
-  description = "Kuard DNS zone"
+resource "google_dns_managed_zone" "game" {
+  name        = "game"
+  dns_name    = "game.${data.aws_route53_zone.source.name}."
+  description = "game DNS zone"
   labels = {
     purpose = "demo"
   }
@@ -34,25 +29,25 @@ resource "google_dns_managed_zone" "kuard" {
 
 # Pass ownership of the subdomain to GCP by creating an NS record in AWS Route 53
 # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record
-resource "aws_route53_record" "kuard" {
+resource "aws_route53_record" "game" {
   zone_id = data.aws_route53_zone.source.zone_id
-  name    = "kuard.${data.aws_route53_zone.source.name}"
+  name    = "game.${data.aws_route53_zone.source.name}"
   type    = "NS"
   ttl     = 172800
 
   # The contents of the NS record must be the name servers from the managed zone from GCP
-  records = google_dns_managed_zone.kuard.name_servers
+  records = google_dns_managed_zone.game.name_servers
 }
 
 # Assign the IP address of the Load Balancer to the subdomain
-# This should redirect "kuard.xamos.org" to the Load Balancer"
+# This should redirect "game.xamos.org" to the Load Balancer"
 # https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/dns_record_set
-resource "google_dns_record_set" "kuard" {
-  name = "kuard.${data.aws_route53_zone.source.name}."
+resource "google_dns_record_set" "game" {
+  name = "game.${data.aws_route53_zone.source.name}."
   type = "A"
   ttl  = 300 # Keeping it short for demo purposes
 
-  managed_zone = google_dns_managed_zone.kuard.name
+  managed_zone = google_dns_managed_zone.game.name
 
   rrdatas = [
     data.kubernetes_service.ingress_controller.status.0.load_balancer.0.ingress.0.ip
@@ -60,11 +55,10 @@ resource "google_dns_record_set" "kuard" {
 }
 
 # Create the actual demo application
-# Following https://cert-manager.io/docs/tutorials/acme/nginx-ingress/#step-4---deploy-an-example-service
 # https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment
-resource "kubernetes_deployment" "kuard" {
+resource "kubernetes_deployment" "game" {
   metadata {
-    name = "kuard"
+    name = "game"
   }
 
   spec {
@@ -72,28 +66,27 @@ resource "kubernetes_deployment" "kuard" {
 
     selector {
       match_labels = {
-        app = "kuard"
+        app = "game"
       }
     }
 
     template {
       metadata {
         labels = {
-          app = "kuard"
+          app = "game"
         }
       }
 
       spec {
         container {
-          image = "gcr.io/kuar-demo/kuard-amd64:1"
-          name  = "kuard"
+          image = "alexwhen/docker-2048:latest"
+          name  = "game"
 
           port {
-            container_port = 8080
+            container_port = 80
           }
 
-          # The example does not include resource requests/limits or liveness probes
-          # But it's a good habit to include them
+          # https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
           resources {
             limits = {
               cpu    = "0.5"
@@ -108,7 +101,7 @@ resource "kubernetes_deployment" "kuard" {
           liveness_probe {
             http_get {
               path = "/"
-              port = 8080
+              port = 80
             }
 
             initial_delay_seconds = 15
@@ -121,19 +114,19 @@ resource "kubernetes_deployment" "kuard" {
 }
 
 # https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service
-resource "kubernetes_service" "kuard" {
+resource "kubernetes_service" "game" {
   metadata {
-    name = "kuard"
+    name = "game"
   }
 
   spec {
     selector = {
-      app = "kuard"
+      app = "game"
     }
 
     port {
       port        = 80
-      target_port = 8080
+      target_port = 80
       protocol    = "TCP"
       name        = "http"
     }
@@ -143,11 +136,11 @@ resource "kubernetes_service" "kuard" {
 }
 
 # https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/ingress_v1
-resource "kubernetes_ingress_v1" "kuard" {
+resource "kubernetes_ingress_v1" "game" {
   metadata {
-    name = "kuard"
+    name = "game"
     annotations = {
-      "cert-manager.io/cluster-issuer" = "letsencrypt-staging"
+      "cert-manager.io/cluster-issuer" = kubernetes_manifest.cluster_issuer.object.metadata.name
     }
   }
 
@@ -155,12 +148,12 @@ resource "kubernetes_ingress_v1" "kuard" {
     ingress_class_name = "nginx"
 
     tls {
-      hosts       = ["kuard.xamos.org"]
-      secret_name = "kuard-tls"
+      hosts       = [aws_route53_record.game.fqdn]
+      secret_name = "2048-game-tls"
     }
 
     rule {
-      host = "kuard.xamos.org"
+      host = aws_route53_record.game.fqdn
 
       http {
         path {
@@ -169,7 +162,7 @@ resource "kubernetes_ingress_v1" "kuard" {
 
           backend {
             service {
-              name = "kuard"
+              name = "game"
               port {
                 name = "http"
               }
@@ -179,8 +172,4 @@ resource "kubernetes_ingress_v1" "kuard" {
       }
     }
   }
-
-  depends_on = [
-    google_dns_record_set.kuard,
-  ]
 }
