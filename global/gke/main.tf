@@ -204,6 +204,8 @@ data "kubernetes_config_map" "kube_dns_autoscaler" {
     name      = "kube-dns-autoscaler"
     namespace = "kube-system"
   }
+
+  depends_on = [google_container_cluster.main]
 }
 
 # Then we override it by adjusting its contents
